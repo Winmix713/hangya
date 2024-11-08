@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-lg">
+        <h1 class="text-2xl font-bold mb-4">Add Match Results</h1>
+        <form id="matchForm" class="space-y-4">
+            <div>
+                <label for="startMatchId" class="block text-lg font-medium">Starting Match ID:</label>
+                <input type="number" id="startMatchId" class="w-full p-2 border rounded-lg" placeholder="Enter starting match ID" min="1" required>
+            </div>
+
+            <div>
+                <label for="homeTeam" class="block text-lg font-medium">Home Team:</label>
+                <select id="homeTeam" class="w-full p-2 border rounded-lg" required>
+                    <option value="">Select Home Team</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="awayTeam" class="block text-lg font-medium">Away Team:</label>
+                <select id="awayTeam" class="w-full p-2 border rounded-lg" required>
+                    <option value="">Select Away Team</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="date" class="block text-lg font-medium">Date:</label>
+                <input type="datetime-local" id="date" class="w-full p-2 border rounded-lg" required>
+            </div>
+
+            <div>
+                <label for="csvFile" class="block text-lg font-medium">Upload CSV File:</label>
+                <input type="file" id="csvFile" class="w-full p-2 border rounded-lg" accept=".csv" required>
+            </div>
+
+            <div id="scores" class="space-y-4"></div>
+
+            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded-lg font-bold hover:bg-blue-700">Add Results</button>
+        </form>
+
+        <h2 class="text-xl font-bold mt-6">Results</h2>
+        <pre id="results" class="bg-gray-200 p-4 rounded-lg"></pre>
+    </div>
+
+    <script>
+        const leagueId = 1;
+        let results = JSON.parse(localStorage.getItem('results')) || [];
+        let matchId = parseInt(localStorage.getItem('matchId')) || 1;
+
+        const teams = [
+            "Aston Oroszlán", "Brentford", "Brighton", "Chelsea", "Crystal Palace", 
+            "Everton", "Fulham", "Liverpool", "London Ágyúk", "Manchester Kék", 
+            "Newcastle", "Nottingham", "Tottenham", "Vörös Ördögök", "West Ham", 
+            "Wolverhampton"
+        ];
+
+        teams.sort();
+
+        const homeTeamSelect = document.getElementById('homeTeam');
+        const awayTeamSelect = document.getElementById('awayTeam');
+
+        teams.forEach(team => {
+            const option = document.createElement('option');
+            option.value = team;
+            option.textContent = team;
+            homeTeamSelect.appendChild(option.cloneNode(true));
+            awayTeamSelect.appendChild(option.cloneNode(true));
+        });
+
+        function createScoreInput(index) {
+            const scoreDiv = document.createElement('div');
+            scoreDiv.className = "flex items-center justify-between p-4 border rounded-lg bg-gray-100";
+
+            scoreDiv.innerHTML = `
+                <div class="flex flex-col w-1/2 pr-2">
+                    <label for="homeScore${index}" class="block font-medium">Home Score:</label>
+                    <input type="number" id="homeScore${index}" class="w-full p-2 border rounded-lg" required min="0">
+                </div>
+                <div class="flex flex-col w-1/2 pl-2">
+                    <label for="awayScore${index}" class="block font-medium">Away Score:</label>
+                    <input type="number" id="awayScore${index}" class="w-full p-2 border rounded-lg" required min="0">
+                </div>
+            `;
+            return scoreDiv;
+        }
+
+        const scoresDiv = document.getElementById('scores');
+        for (let i = 0; i < 13; i++) {
+            scoresDiv.appendChild(createScoreInput(i));
+        }
+
+        function saveResultsToLocalStorage() {
+            localStorage.setItem('results', JSON.stringify(results));
+            localStorage.setItem('matchId', matchId.toString());
+        }
+
+        function renderResults() {
+            document.getElementById('results').textContent = JSON.stringify(results, null, 4);
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            const result = [];
+            const headers = lines[0].replace(/"/g, '').split(',');
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim() === '') continue;
+                const obj = {};
+                const currentline = lines[i].replace(/"/g, '').split(',');
+
+                for (let j = 0; j < headers.length; j++) {
+                    obj[headers[j].trim()] = currentline[j].trim();
+                }
+
+                result.push(obj);
+            }
+
+            return result;
+        }
+
+        function formatDate(date, time) {
+            const [day, month, year] = date.split('/');
+            return `20${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${time}`;
+        }
+
+        document.getElementById('csvFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const csv = e.target.result;
+                const data = parseCSV(csv);
+
+                if (data.length > 0) {
+                    document.getElementById('homeTeam').value = data[0]['Hazai csapat neve'];
+                    document.getElementById('awayTeam').value = data[0]['vendég csapat nev'];
+                    document.getElementById('date').value = formatDate(data[0]['dátum'], data[0]['időpont']);
+
+                    data.forEach((row, index) => {
+                        if (index < 13) {
+                            document.getElementById(`homeScore${index}`).value = row['Hazai gólok száma'];
+                            document.getElementById(`awayScore${index}`).value = row['Vendég gól száma'];
+                        }
+                    });
+                }
+            };
+
+            reader.readAsText(file);
+        });
+
+        document.getElementById('matchForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const startMatchId = parseInt(document.getElementById('startMatchId').value);
+            if (startMatchId && matchId < startMatchId) {
+                matchId = startMatchId;
+                localStorage.setItem('matchId', matchId.toString());
+            }
+
+            const homeTeam = document.getElementById('homeTeam').value;
+            const awayTeam = document.getElementById('awayTeam').value;
+            const date = document.getElementById('date').value;
+
+            for (let i = 0; i < 13; i++) {
+                const homeScore = parseInt(document.getElementById(`homeScore${i}`).value);
+                const awayScore = parseInt(document.getElementById(`awayScore${i}`).value);
+                const bothTeamsScored = homeScore > 0 && awayScore > 0;
+
+                const result = {
+                    match_id: matchId++,
+                    league_id: leagueId,
+                    date: date,
+                    home_team: homeTeam,
+                    away_team: awayTeam,
+                    score: {
+                        home: homeScore,
+                        away: awayScore
+                    },
+                    both_teams_scored: bothTeamsScored
+                };
+
+                results.push(result);
+            }
+
+            saveResultsToLocalStorage();
+            renderResults();
+        });
+
+        renderResults();
+    </script>
+</body>
+</html>
